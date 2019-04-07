@@ -5,96 +5,18 @@ df = read_delim('data/Ano-2018.csv',
                 delim=';',
                 col_types = cols())
 
-plotGastos = function(data,
-                      partidos,
-                      geral){
-
-    mes_ord = c('janeiro', 'fevereiro', 'março', 'abril',
-                'maio', 'junho', 'julho', 'agosto',
-                'setembro', 'outubro', 'novembro', 'dezembro')
-
-    df_plot = data %>%
-        filter(sgPartido %in% partidos) %>%
-        mutate(mes = months(datEmissao)) %>%
-        group_by(sgPartido, mes) %>%
-        summarise(Mediana = median(vlrLiquido, na.rm = TRUE),
-                  Média = mean(vlrLiquido, na.rm = TRUE),
-                  DP = sd(vlrLiquido, na.rm = TRUE),
-                  Min = min(vlrLiquido, na.rm = TRUE),
-                  Max = max(vlrLiquido, na.rm = TRUE),
-                  p25 = quantile(vlrLiquido, na.rm = TRUE, probs = .25),
-                  p75 = quantile(vlrLiquido, na.rm = TRUE, probs = .75)
-                  ) %>%
-        filter(!is.na(mes)) %>%
-        mutate(mes = fct_relevel(mes, mes_ord))
-    
-    df_geral = data %>%
-      #  filter(sgPartido %in% partidos) %>%
-        mutate(mes = months(datEmissao)) %>%
-        group_by(mes) %>%
-        summarise(Mediana = median(vlrLiquido, na.rm = TRUE),
-                  Média = mean(vlrLiquido, na.rm = TRUE),
-                  DP = sd(vlrLiquido, na.rm = TRUE),
-                  Min = min(vlrLiquido, na.rm = TRUE),
-                  Max = max(vlrLiquido, na.rm = TRUE),
-                  p25 = quantile(vlrLiquido, na.rm = TRUE, probs = .25),
-                  p75 = quantile(vlrLiquido, na.rm = TRUE, probs = .75)
-                  ) %>%
-        filter(!is.na(mes)) %>%
-        mutate(mes = fct_relevel(mes, mes_ord))
-
-    p_out = df_plot %>%
-        ggplot(aes(x = mes, y = Média, group = sgPartido)) +
-        geom_line(aes(col = sgPartido)) +
-        geom_point(aes(col = sgPartido))
-
-    if(geral){
-        p_out = p_out +
-            geom_point(data = df_geral,
-                       mapping =aes(x = mes,
-                                    y = Média,
-                                    group = 1,
-                                    col = 'Geral')) +
-            geom_line(data = df_geral,
-                       mapping =aes(x = mes,
-                                    y = Média,
-                                    group = 1,
-                                    col = 'Geral'),
-                      linetype = 2) 
-    } # end if geral
-
-##     if(dispersao){
-
-##         p_out = p_out +
-##             geom_ribbon(aes(ymin = Média - DP,
-##                             ymax = Média + DP),
-## #                        fill = sgPartido,
-##                         alpha = .3,
-##                         data = df_plot)
-
-##     } # end if dispersao
+source('src/functions.R')
 
 
-    
-    return(p_out)
-    
-
-}
-
-
-
-
-
-
-##################################################
-
-
+## UI ##################################################
 ui = fluidPage(
 
     titlePanel('Gasto médio dos parlamentares por partido'),
 
     sidebarLayout(
+
         sidebarPanel(
+            helpText('Selecione os partidos que deseja visualizar, depois se gostaria de ver a média geral de gastos e clique em Submeter ao final.'),
             checkboxGroupInput('partidos',
                                h3('Partidos'),
                                choices = sort(unique(df$sgPartido))
@@ -102,25 +24,49 @@ ui = fluidPage(
             h3('Mostral média geral?'),
             checkboxInput("geral",
                           label = "Sim",
-                          value = TRUE)
-        ), # end sidebarpanel
+                          value = TRUE),
+            submitButton("Submeter")
+    ), # end sidebarpanel
 
-        mainPanel(
+    mainPanel(
 
-            plotOutput(outputId = 'gastos')
+            tabsetPanel(
+                id = 'dataset',
+                type = 'tabs',
+                tabPanel("Gráfico", plotOutput("plotGastos")),
+                tabPanel("Tabela Gastos por Partido",
+                         DT::dataTableOutput("tabMedia")),
+                tabPanel("Tabela Gastos Médios",
+                         DT::dataTableOutput("tabGeral"))
+            )
+
 
         )
     ) # end sidebarLayout
 
 ) # end UI
 
+
+## SERVER ============================================
 server = function(input, output){
 
-    output$gastos = renderPlot({plotGastos(data = df,
-               partidos = input$partidos,
-               geral =input$geral)
-               })
-    
+    d = reactive({
+        obj = plotGastos(data = df,
+                         partidos = input$partidos,
+                         geral =input$geral)
+    })
+
+    output$plotGastos = renderPlot(d()$plot)
+    output$tabMedia = DT::renderDataTable({
+        DT::datatable(d()$tabela,
+                      options = list(pageLength = 12))
+        })
+    output$tabGeral = DT::renderDataTable({
+        DT::datatable(d()$tabelaGeral,
+                      options = list(pageLength = 12))
+        })
+
 }
 
+## APP LAUNCH =========================================
 shinyApp(ui = ui, server = server)
