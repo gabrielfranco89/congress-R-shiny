@@ -11,7 +11,7 @@ source('src/functions.R')
 ## UI ##################################################
 ui = fluidPage(
 
-    titlePanel('Gasto médio dos parlamentares por partido'),
+    titlePanel('Gasto médio dos parlamentares por partido em 2018'),
 
     sidebarLayout(
 
